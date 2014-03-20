@@ -1,0 +1,4 @@
+<FilesMatch "\.(tpl|ini|log|txt|facebook|sql)">
+ Order deny,allow
+ Deny from all
+</FilesMatch>
