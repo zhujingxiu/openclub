@@ -10,7 +10,7 @@ class ControllerCommonLogin extends Controller {
 
 		$this->document->setBodyClass('login');
 		
-		$this->document->addStyle('protected/view/stylesheet/login.css');
+		$this->document->addStyle('application/view/stylesheet/login.css');
 		
 		$this->document->addScript('asset/js/jquery.validate.min.js');
 				
