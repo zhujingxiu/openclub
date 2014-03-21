@@ -76,7 +76,7 @@
 <?php } ?>
 <!-- END EXT PLUGINS JAVASCRIPT -->
 <?php }?>
-<script src="protected/view/javascript/app.js" type="text/javascript"></script>
+<script src="application/view/javascript/app.js" type="text/javascript"></script>
 </head>
 <body <?php echo !empty($body_class) ? 'class="'.$body_class.'"' : ''?>>
 
