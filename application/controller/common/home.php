@@ -27,7 +27,7 @@ class ControllerCommonHome extends Controller {
 		$this->document->addScript('asset/js/jquery.easy-pie-chart.js');
 		$this->document->addScript('asset/js/jquery.sparkline.min.js');
 		
-		$this->document->addScript('protected/view/javascript/index.js');
+		$this->document->addScript('application/view/javascript/index.js');
 		
 		
     	$this->data['heading_title'] = $this->language->get('heading_title');
