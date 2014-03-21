@@ -1,204 +1,97 @@
 <?php
-// Version
-define('VERSION', '1.0 Beta');
-
-define('SESS_LONG_TIME', False);
-
+// Check Version
+if (version_compare(phpversion(), '5.1.0', '<') == true) {
+	exit('PHP5.1+ Required');
+}
+// Timezone
 date_default_timezone_set('PRC');
 
-// Configuration
-if (file_exists('config.php')) {
-	require_once('config.php');
-}  
+// APP_PATH
+define('APP_PATH', dirname(__FILE__));
 
-// Configuration
-if (file_exists('db.php')) {
-	require_once('db.php');
-} 
-// Startup
-require_once(DIR_SYSTEM . 'startup.php');
+// Environment
+defined('APP_ENV')  || define('APP_ENV',  'development' );
 
-// Application Classes
-require_once(DIR_SYSTEM . 'library/user.php');
-
-// Registry
-$registry = new Registry();
-
-// Loader
-$loader = new Loader($registry);
-$registry->set('load', $loader);
-
-// Config
-$config = new Config();
-$registry->set('config', $config);
-
-// Database
-$db = new DB(DB_DRIVER, DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_DATABASE);
-$registry->set('db', $db);
-		
-// Settings
-$query = $db->query("SELECT * FROM " . DB_PREFIX . "setting");
- 
-foreach ($query->rows as $setting) {
-	if (!$setting['serialized']) {
-		$config->set($setting['key'], $setting['value']);
-	} else {
-		$config->set($setting['key'], unserialize($setting['value']));
-	}
+// Error Reporting
+if('development' == APP_ENV){	
+	error_reporting(E_ALL);
 }
 
-// Url
-$url = new Url(HTTP_SERVER, HTTP_SERVER);	
-$registry->set('url', $url);
-		
-// Log 
-$log = new Log($config->get('config_error_filename'));
-$registry->set('log', $log);
-
-function error_handler($errno, $errstr, $errfile, $errline) {
-	global $log, $config;
+// Register Globals
+if (ini_get('register_globals')) {
+	ini_set('session.use_cookies', 'On');
+	ini_set('session.use_trans_sid', 'Off');
 	
-	switch ($errno) {
-		case E_NOTICE:
-		case E_USER_NOTICE:
-			$error = 'Notice';
-			break;
-		case E_WARNING:
-		case E_USER_WARNING:
-			$error = 'Warning';
-			break;
-		case E_ERROR:
-		case E_USER_ERROR:
-			$error = 'Fatal Error';
-			break;
-		default:
-			$error = 'Unknown';
-			break;
-	}
+	session_start();
 		
-	if ($config->get('config_error_display')) {
-		echo '<b>' . $error . '</b>: ' . $errstr . ' in <b>' . $errfile . '</b> on line <b>' . $errline . '</b>';
-	}
-	
-	if ($config->get('config_error_log')) {
-		$log->write('PHP ' . $error . ':  ' . $errstr . ' in ' . $errfile . ' on line ' . $errline);
-	}
-
-	return true;
-}
-
-// Error Handler
-set_error_handler('error_handler');
+	$globals = array($_REQUEST, $_SESSION, $_SERVER, $_FILES);
 		
-// Request
-$request = new Request();
-$registry->set('request', $request);
-
-// Response
-$response = new Response();
-$response->addHeader('Content-Type: text/html; charset=utf-8');
-$registry->set('response', $response); 
-
-// Cache
-$cache = new Cache();
-$registry->set('cache', $cache); 
-
-// Session
-$session = new Session();
-$registry->set('session', $session); 
-
-// Language
-$languages = array();
-
-$query = $db->query("SELECT * FROM `" . DB_PREFIX . "language` WHERE status = '1'"); 
-
-foreach ($query->rows as $result) {
-	$languages[$result['code']] = $result;
-}
-
-$detect = "";
-
-if (isset($request->server['HTTP_ACCEPT_LANGUAGE']) && $request->server['HTTP_ACCEPT_LANGUAGE']) { 
-	$browser_languages = explode(',', $request->server['HTTP_ACCEPT_LANGUAGE']);
-	
-	foreach ($browser_languages as $browser_language) {
-		
-		foreach ($languages as $key => $value) {
-			
-			if ($value['status']) {
-				$locale = explode(',', $value['locale']);
-
-				if (in_array($browser_language, $locale)) {
-					
-					$detect = $key;
-					
-				}
-			}
+	foreach ($globals as $global) {
+		foreach(array_keys($global) as $key) {
+			unset(${$key}); 
 		}
 	}
 }
 
-if (isset($session->data['language']) && array_key_exists($session->data['language'], $languages) && $languages[$session->data['language']]['status']) {
-	$code = $session->data['language'];
-} elseif (isset($request->cookie['language']) && array_key_exists($request->cookie['language'], $languages) && $languages[$request->cookie['language']]['status']) {
-	$code = $request->cookie['language'];
-} elseif ($detect) {
-	$code = $detect;
-} else {
-	$code = $config->get('config_language');
+// Magic Quotes Fix
+if (ini_get('magic_quotes_gpc')) {
+ 	function clean($data) {
+		if (is_array($data)) {
+			foreach ($data as $key => $value) {
+				$data[clean($key)] = clean($value);
+			}
+		} else {
+			$data = stripslashes($data);
+		}
+		return $data;
+	}
+	
+	$_GET = clean($_GET);
+	$_POST = clean($_POST);
+	$_REQUEST = clean($_REQUEST);
+	$_COOKIE = clean($_COOKIE);
 }
 
-$config->set('config_language_id', $languages[$config->get('config_admin_language')]['language_id']);
-
-if (!isset($session->data['language']) || $session->data['language'] != $code) {
-	$session->data['language'] = $code;
-}
-
-if (!isset($request->cookie['language']) || $request->cookie['language'] != $code) {	  
-	setcookie('language', $code, time() + 60 * 60 * 24 * 30, '/', $request->server['HTTP_HOST']);
-}			
-
-$config->set('config_language_id', $languages[$code]['language_id']);
-$config->set('config_language', $languages[$code]['code']);
-
-// Language	
-$language = new Language($languages[$config->get('config_admin_language')]['directory']);
-$language->load($languages[$config->get('config_admin_language')]['filename']);	
-$registry->set('language', $language);
-
-// Document
-$registry->set('document', new Document()); 		
-		
-
-// User
-if(!empty($_COOKIE['remeber_username'])){
-	$query = $db->query("SELECT * FROM `" . DB_PREFIX . "user` WHERE username = '".$db->escape($_COOKIE['remeber_username'])."' AND status = '1'"); 
-	if($query->num_rows){
-		$session->data['user_id'] = $query->row['user_id'];
+// Windows IIS Compatibility 
+if (!isset($_SERVER['DOCUMENT_ROOT'])) { 
+	if (isset($_SERVER['SCRIPT_FILENAME'])) {
+		$_SERVER['DOCUMENT_ROOT'] = str_replace('\\', '/', substr($_SERVER['SCRIPT_FILENAME'], 0, 0 - strlen($_SERVER['PHP_SELF'])));
 	}
 }
 
-$registry->set('user', new User($registry));
-						
-// Front Controller
-$controller = new Front($registry);
-
-// Login
-$controller->addPreAction(new Action('common/home/login'));
-
-// Permission
-$controller->addPreAction(new Action('common/home/permission'));
-
-// Router
-if (isset($request->get['route'])) {
-	$action = new Action($request->get['route']);
-} else {
-	$action = new Action('common/home');
+if (!isset($_SERVER['DOCUMENT_ROOT'])) {
+	if (isset($_SERVER['PATH_TRANSLATED'])) {
+		$_SERVER['DOCUMENT_ROOT'] = str_replace('\\', '/', substr(str_replace('\\\\', '\\', $_SERVER['PATH_TRANSLATED']), 0, 0 - strlen($_SERVER['PHP_SELF'])));
+	}
 }
 
-// Dispatch
-$controller->dispatch($action, new Action('error/not_found'));
+if (!isset($_SERVER['REQUEST_URI'])) { 
+	$_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1); 
+	
+	if (isset($_SERVER['QUERY_STRING'])) { 
+		$_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING']; 
+	} 
+}
 
-// Output
-$response->output();
+if (!isset($_SERVER['HTTP_HOST'])) {
+	$_SERVER['HTTP_HOST'] = getenv('HTTP_HOST');
+}
+
+// Bootstrap
+require_once(APP_PATH . '/system/bootstrap.php');
+
+$app = new Bootstrap();
+
+// User
+if(!empty($_COOKIE['remeber_username'])){
+	$query = $app->db->query("SELECT * FROM `" . DB_PREFIX . "user` WHERE username = '".$app->db->escape($_COOKIE['remeber_username'])."' AND status = '1'"); 
+	if($query->num_rows){
+		$app->session->data['user_id'] = $query->row['user_id'];
+	}
+}
+// Application Classes
+require_once(DIR_SYSTEM . 'library/user.php');
+$app->registry->set('user', new User($app->registry));
+						
+$app->run();
 ?>
